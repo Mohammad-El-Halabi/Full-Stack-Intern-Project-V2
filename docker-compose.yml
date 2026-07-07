@@ -1,0 +1,45 @@
+# Optional convenience: run the whole backend stack (MySQL + API) with one
+# command, without installing JDK/Maven/MySQL locally:
+#
+#     docker compose up --build
+#
+# The API will be available at http://localhost:8080 and MySQL at localhost:3306.
+# The schema.sql and seed.sql are loaded automatically on first startup.
+# (This is an alternative to the manual STS + MySQL/HeidiSQL setup in the README.)
+
+services:
+  mysql:
+    image: mysql:8.0
+    container_name: ecommerce-mysql
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: ecommerce_db
+    ports:
+      - "3306:3306"
+    volumes:
+      # Scripts in this folder run in alphabetical order on first init:
+      # 01_schema.sql then 02_seed.sql.
+      - ./database/schema.sql:/docker-entrypoint-initdb.d/01_schema.sql:ro
+      - ./database/seed.sql:/docker-entrypoint-initdb.d/02_seed.sql:ro
+      - mysql_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-uroot", "-proot"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  api:
+    build: ./backend
+    container_name: ecommerce-api
+    depends_on:
+      mysql:
+        condition: service_healthy
+    environment:
+      DB_URL: "jdbc:mysql://mysql:3306/ecommerce_db?useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true"
+      DB_USERNAME: root
+      DB_PASSWORD: root
+    ports:
+      - "8080:8080"
+
+volumes:
+  mysql_data:

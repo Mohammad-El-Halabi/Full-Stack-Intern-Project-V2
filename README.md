@@ -230,3 +230,17 @@ cd backend && mvn spring-boot:run      # http://localhost:8080
 # 3. App (in another terminal)
 cd frontend && flutter pub get && flutter run -d chrome
 ```
+
+### Optional: run the backend + database with Docker (one command)
+
+If you have Docker and would rather not install JDK/Maven/MySQL, the whole
+backend stack (MySQL with schema+seed pre-loaded, plus the API) can be started
+with a single command from the project root:
+
+```bash
+docker compose up --build     # API on http://localhost:8080, MySQL on :3306
+```
+
+Then run the Flutter app as in step 3. Stop the stack with `docker compose down`
+(add `-v` to also drop the database volume). This is purely a convenience — the
+manual STS + MySQL/HeidiSQL setup above works exactly the same.
