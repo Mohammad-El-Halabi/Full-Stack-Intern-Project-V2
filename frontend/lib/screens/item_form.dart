@@ -3,6 +3,18 @@ import 'package:flutter/material.dart';
 import '../main.dart';
 import '../models/item.dart';
 import '../services/api_service.dart';
+import '../theme/app_theme.dart';
+
+/// Opens the item create/edit sheet. Resolves to `'created'` / `'updated'`
+/// when saved, or `null` if dismissed.
+Future<String?> showItemForm(BuildContext context, {Item? existing}) {
+  return showModalBottomSheet<String>(
+    context: context,
+    isScrollControlled: true,
+    showDragHandle: true,
+    builder: (_) => ItemForm(existing: existing),
+  );
+}
 
 /// Create or edit an item. Returns `true` via Navigator.pop when saved.
 class ItemForm extends StatefulWidget {
@@ -58,13 +70,10 @@ class _ItemFormState extends State<ItemForm> {
       } else {
         await api.createItem(item);
       }
-      if (mounted) Navigator.pop(context, true);
+      if (mounted) Navigator.pop(context, _isEdit ? 'updated' : 'created');
     } on ApiException catch (e) {
       setState(() => _saving = false);
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text(e.message), backgroundColor: Colors.red));
-      }
+      if (mounted) context.showError(e.message);
     }
   }
 

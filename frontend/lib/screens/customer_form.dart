@@ -3,8 +3,20 @@ import 'package:flutter/material.dart';
 import '../main.dart';
 import '../models/customer.dart';
 import '../services/api_service.dart';
+import '../theme/app_theme.dart';
 
-/// Create or edit a customer. Returns `true` via Navigator.pop when saved.
+/// Opens the customer create/edit sheet. Resolves to `'created'` / `'updated'`
+/// when saved, or `null` if dismissed.
+Future<String?> showCustomerForm(BuildContext context, {Customer? existing}) {
+  return showModalBottomSheet<String>(
+    context: context,
+    isScrollControlled: true,
+    showDragHandle: true,
+    builder: (_) => CustomerForm(existing: existing),
+  );
+}
+
+/// Create or edit a customer. Returns a status string via Navigator.pop.
 class CustomerForm extends StatefulWidget {
   final Customer? existing;
   const CustomerForm({super.key, this.existing});
@@ -57,13 +69,10 @@ class _CustomerFormState extends State<CustomerForm> {
       } else {
         await api.createCustomer(customer);
       }
-      if (mounted) Navigator.pop(context, true);
+      if (mounted) Navigator.pop(context, _isEdit ? 'updated' : 'created');
     } on ApiException catch (e) {
       setState(() => _saving = false);
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text(e.message), backgroundColor: Colors.red));
-      }
+      if (mounted) context.showError(e.message);
     }
   }
 

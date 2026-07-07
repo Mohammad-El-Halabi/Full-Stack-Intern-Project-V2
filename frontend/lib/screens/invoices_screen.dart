@@ -4,7 +4,9 @@ import '../main.dart';
 import '../models/customer.dart';
 import '../models/invoice.dart';
 import '../services/api_service.dart';
+import '../theme/app_theme.dart';
 import '../utils/formatting.dart';
+import '../widgets/badges.dart';
 import 'invoice_create_screen.dart';
 
 /// View all invoices for a chosen customer (by id) and create new ones.
@@ -21,7 +23,9 @@ class _InvoicesScreenState extends State<InvoicesScreen> {
   bool _loadingCustomers = true;
   String? _customersError;
 
-  Future<List<Invoice>>? _invoicesFuture;
+  List<Invoice> _invoices = [];
+  bool _loadingInvoices = false;
+  String? _invoicesError;
 
   @override
   void initState() {
@@ -35,19 +39,18 @@ class _InvoicesScreenState extends State<InvoicesScreen> {
       _customersError = null;
     });
     try {
-      final page = await api.getCustomers(size: 200);
+      final page = await api.getCustomers(size: 500);
+      if (!mounted) return;
       setState(() {
         _customers = page.content;
         _loadingCustomers = false;
-        // Keep the previously selected customer if still present.
         if (_selected != null) {
-          _selected = _customers.firstWhere(
-            (c) => c.id == _selected!.id,
-            orElse: () => _customers.isNotEmpty ? _customers.first : _selected!,
-          );
+          _selected = _customers.firstWhere((c) => c.id == _selected!.id,
+              orElse: () => _customers.isNotEmpty ? _customers.first : _selected!);
         }
       });
     } on ApiException catch (e) {
+      if (!mounted) return;
       setState(() {
         _loadingCustomers = false;
         _customersError = e.message;
@@ -55,21 +58,34 @@ class _InvoicesScreenState extends State<InvoicesScreen> {
     }
   }
 
-  void _selectCustomer(Customer? c) {
+  Future<void> _selectCustomer(Customer? c) async {
     setState(() {
       _selected = c;
-      _invoicesFuture = c == null ? null : _loadInvoices(c.id!);
+      _invoices = [];
+      _invoicesError = null;
     });
+    if (c != null) await _loadInvoices();
   }
 
-  Future<List<Invoice>> _loadInvoices(int customerId) async {
-    final page = await api.getInvoicesByCustomer(customerId, size: 100);
-    return page.content;
-  }
-
-  void _refreshInvoices() {
-    if (_selected != null) {
-      setState(() => _invoicesFuture = _loadInvoices(_selected!.id!));
+  Future<void> _loadInvoices() async {
+    if (_selected == null) return;
+    setState(() {
+      _loadingInvoices = true;
+      _invoicesError = null;
+    });
+    try {
+      final page = await api.getInvoicesByCustomer(_selected!.id!, size: 200);
+      if (!mounted) return;
+      setState(() {
+        _invoices = page.content;
+        _loadingInvoices = false;
+      });
+    } on ApiException catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _loadingInvoices = false;
+        _invoicesError = e.message;
+      });
     }
   }
 
@@ -77,40 +93,26 @@ class _InvoicesScreenState extends State<InvoicesScreen> {
     if (_selected == null) return;
     final created = await Navigator.push<bool>(
       context,
-      MaterialPageRoute(
-        builder: (_) => InvoiceCreateScreen(customer: _selected!),
-      ),
+      MaterialPageRoute(builder: (_) => InvoiceCreateScreen(customer: _selected!)),
     );
-    if (created == true) _refreshInvoices();
+    if (created == true) {
+      await _loadInvoices();
+      if (mounted) context.showSuccess('Invoice created');
+    }
   }
 
-  Future<void> _confirmDelete(Invoice inv) async {
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Delete invoice'),
-        content: Text('Delete invoice #${inv.id} (${money(inv.totalAmount)})?'),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
-          FilledButton.tonal(
-            onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('Delete'),
-          ),
-        ],
-      ),
-    );
+  Future<void> _delete(Invoice inv) async {
+    final ok = await confirmDelete(context, 'invoice', 'Invoice #${inv.id}');
     if (ok != true) return;
+    final index = _invoices.indexWhere((x) => x.id == inv.id);
+    setState(() => _invoices.removeWhere((x) => x.id == inv.id));
     try {
       await api.deleteInvoice(inv.id);
-      if (mounted) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text('Deleted invoice #${inv.id}')));
-      }
-      _refreshInvoices();
+      if (mounted) context.showSuccess('Deleted invoice #${inv.id}');
     } on ApiException catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text(e.message), backgroundColor: Colors.red));
+        setState(() => _invoices.insert(index < 0 ? 0 : index, inv));
+        context.showError(e.message);
       }
     }
   }
@@ -121,7 +123,6 @@ class _InvoicesScreenState extends State<InvoicesScreen> {
       body: Column(
         children: [
           _buildCustomerPicker(),
-          const Divider(height: 1),
           Expanded(child: _buildInvoiceList()),
         ],
       ),
@@ -138,37 +139,33 @@ class _InvoicesScreenState extends State<InvoicesScreen> {
   Widget _buildCustomerPicker() {
     if (_loadingCustomers) {
       return const Padding(
-        padding: EdgeInsets.all(16),
-        child: LinearProgressIndicator(),
-      );
+          padding: EdgeInsets.all(16), child: LinearProgressIndicator());
     }
     if (_customersError != null) {
       return Padding(
         padding: const EdgeInsets.all(16),
-        child: Row(
-          children: [
-            const Icon(Icons.error_outline, color: Colors.red),
-            const SizedBox(width: 8),
-            Expanded(child: Text(_customersError!)),
-            TextButton(onPressed: _loadCustomers, child: const Text('Retry')),
-          ],
-        ),
+        child: Row(children: [
+          Icon(Icons.error_outline, color: Theme.of(context).colorScheme.error),
+          const SizedBox(width: 8),
+          Expanded(child: Text(_customersError!)),
+          TextButton(onPressed: _loadCustomers, child: const Text('Retry')),
+        ]),
       );
     }
     return Padding(
-      padding: const EdgeInsets.all(12),
+      padding: const EdgeInsets.fromLTRB(14, 14, 14, 8),
       child: DropdownButtonFormField<Customer>(
         initialValue: _selected,
         isExpanded: true,
         decoration: const InputDecoration(
           labelText: 'Customer',
-          prefixIcon: Icon(Icons.person),
+          prefixIcon: Icon(Icons.person_outline),
         ),
         hint: const Text('Select a customer to view their invoices'),
         items: _customers
             .map((c) => DropdownMenuItem(
                   value: c,
-                  child: Text('${c.name}  (id ${c.id})',
+                  child: Text('${c.name}  ·  id ${c.id}',
                       overflow: TextOverflow.ellipsis),
                 ))
             .toList(),
@@ -179,65 +176,94 @@ class _InvoicesScreenState extends State<InvoicesScreen> {
 
   Widget _buildInvoiceList() {
     if (_selected == null) {
-      return const Center(
-        child: Padding(
-          padding: EdgeInsets.all(24),
-          child: Text('Pick a customer above to see their invoices.',
-              textAlign: TextAlign.center),
-        ),
-      );
+      return _placeholder(Icons.receipt_long_outlined,
+          'Pick a customer above to see their invoices.');
     }
-    return FutureBuilder<List<Invoice>>(
-      future: _invoicesFuture,
-      builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Center(child: CircularProgressIndicator());
-        }
-        if (snapshot.hasError) {
-          return Center(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Icon(Icons.error_outline, color: Colors.red, size: 48),
-                const SizedBox(height: 12),
-                Text('${snapshot.error}', textAlign: TextAlign.center),
-                const SizedBox(height: 12),
-                OutlinedButton(
-                    onPressed: _refreshInvoices, child: const Text('Retry')),
-              ],
-            ),
-          );
-        }
-        final invoices = snapshot.data ?? [];
-        if (invoices.isEmpty) {
-          return Center(
-            child: Padding(
-              padding: const EdgeInsets.all(24),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Icon(Icons.receipt_long_outlined, size: 48),
-                  const SizedBox(height: 12),
-                  Text('${_selected!.name} has no invoices yet.'),
-                  const SizedBox(height: 8),
-                  const Text('Tap "New invoice" to create one.'),
-                ],
-              ),
-            ),
-          );
-        }
-        return RefreshIndicator(
-          onRefresh: () async => _refreshInvoices(),
-          child: ListView.builder(
-            padding: const EdgeInsets.only(bottom: 88, top: 4),
-            itemCount: invoices.length,
-            itemBuilder: (_, i) => _InvoiceCard(
-              invoice: invoices[i],
-              onDelete: () => _confirmDelete(invoices[i]),
+    if (_loadingInvoices) {
+      return const Center(child: CircularProgressIndicator());
+    }
+    if (_invoicesError != null) {
+      return _placeholder(Icons.wifi_off_rounded, _invoicesError!,
+          retry: _loadInvoices, isError: true);
+    }
+    if (_invoices.isEmpty) {
+      return _placeholder(Icons.receipt_long_outlined,
+          '${_selected!.name} has no invoices yet.\nTap “New invoice” to create one.');
+    }
+    final total = _invoices.fold<double>(0, (s, i) => s + i.totalAmount);
+    return Column(
+      children: [
+        _summaryBar(_invoices.length, total),
+        Expanded(
+          child: RefreshIndicator(
+            onRefresh: _loadInvoices,
+            child: ListView.builder(
+              padding: const EdgeInsets.only(top: 4, bottom: 96),
+              itemCount: _invoices.length,
+              itemBuilder: (_, i) =>
+                  _InvoiceCard(invoice: _invoices[i], onDelete: () => _delete(_invoices[i])),
             ),
           ),
-        );
-      },
+        ),
+      ],
+    );
+  }
+
+  Widget _summaryBar(int count, double total) {
+    final scheme = Theme.of(context).colorScheme;
+    return Container(
+      margin: const EdgeInsets.fromLTRB(14, 4, 14, 4),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      decoration: BoxDecoration(
+        color: scheme.primaryContainer,
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text('$count invoice${count == 1 ? '' : 's'}',
+              style: TextStyle(
+                  color: scheme.onPrimaryContainer,
+                  fontWeight: FontWeight.w600)),
+          Text('Lifetime total  ${money(total)}',
+              style: TextStyle(
+                  color: scheme.onPrimaryContainer,
+                  fontWeight: FontWeight.w700)),
+        ],
+      ),
+    );
+  }
+
+  Widget _placeholder(IconData icon, String message,
+      {VoidCallback? retry, bool isError = false}) {
+    final scheme = Theme.of(context).colorScheme;
+    final color = isError ? scheme.error : scheme.primary;
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(28),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(18),
+              decoration: BoxDecoration(
+                  color: color.withValues(alpha: 0.10), shape: BoxShape.circle),
+              child: Icon(icon, size: 40, color: color),
+            ),
+            const SizedBox(height: 16),
+            Text(message,
+                textAlign: TextAlign.center,
+                style: TextStyle(color: scheme.onSurfaceVariant)),
+            if (retry != null) ...[
+              const SizedBox(height: 16),
+              OutlinedButton.icon(
+                  onPressed: retry,
+                  icon: const Icon(Icons.refresh),
+                  label: const Text('Retry')),
+            ],
+          ],
+        ),
+      ),
     );
   }
 }
@@ -249,24 +275,61 @@ class _InvoiceCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
     return Card(
+      clipBehavior: Clip.antiAlias,
       child: ExpansionTile(
-        leading: const CircleAvatar(child: Icon(Icons.receipt_long)),
-        title: Text('Invoice #${invoice.id}  ·  ${money(invoice.totalAmount)}'),
-        subtitle: Text(
-            '${formatDate(invoice.invoiceDate)}  ·  ${invoice.items.length} item(s)  ·  ${invoice.status}'),
+        shape: const Border(),
+        collapsedShape: const Border(),
+        tilePadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
+        leading: Container(
+          width: 46,
+          height: 46,
+          decoration: BoxDecoration(
+            color: scheme.primaryContainer,
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Icon(Icons.receipt_long, color: scheme.onPrimaryContainer),
+        ),
+        title: Row(
+          children: [
+            Text('Invoice #${invoice.id}',
+                style: const TextStyle(fontWeight: FontWeight.w700)),
+            const Spacer(),
+            PricePill(value: invoice.totalAmount),
+          ],
+        ),
+        subtitle: Padding(
+          padding: const EdgeInsets.only(top: 4),
+          child: Text(
+              '${formatDate(invoice.invoiceDate)}  ·  ${invoice.items.length} item(s)'),
+        ),
         childrenPadding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
         children: [
           ...invoice.items.map(
-            (line) => ListTile(
-              dense: true,
-              contentPadding: EdgeInsets.zero,
-              title: Text(line.itemName),
-              subtitle: Text('${line.quantity} × ${money(line.unitPrice)}'),
-              trailing: Text(money(line.lineTotal)),
+            (line) => Padding(
+              padding: const EdgeInsets.symmetric(vertical: 6),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(line.itemName,
+                            style: const TextStyle(fontWeight: FontWeight.w600)),
+                        Text('${line.quantity} × ${money(line.unitPrice)}',
+                            style: TextStyle(
+                                fontSize: 12, color: scheme.onSurfaceVariant)),
+                      ],
+                    ),
+                  ),
+                  Text(money(line.lineTotal),
+                      style: const TextStyle(fontWeight: FontWeight.w600)),
+                ],
+              ),
             ),
           ),
-          const Divider(),
+          const Divider(height: 20),
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
@@ -274,10 +337,11 @@ class _InvoiceCard extends StatelessWidget {
                 onPressed: onDelete,
                 icon: const Icon(Icons.delete_outline),
                 label: const Text('Delete'),
-                style: TextButton.styleFrom(foregroundColor: Colors.red),
+                style: TextButton.styleFrom(foregroundColor: scheme.error),
               ),
-              Text('Total: ${money(invoice.totalAmount)}',
-                  style: Theme.of(context).textTheme.titleMedium),
+              Text('Total  ${money(invoice.totalAmount)}',
+                  style: const TextStyle(
+                      fontWeight: FontWeight.w700, fontSize: 16)),
             ],
           ),
         ],

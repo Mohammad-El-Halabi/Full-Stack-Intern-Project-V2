@@ -3,8 +3,10 @@ package com.store.ecommerce.service;
 import com.store.ecommerce.dto.ItemRequest;
 import com.store.ecommerce.dto.ItemResponse;
 import com.store.ecommerce.entity.Item;
+import com.store.ecommerce.exception.ConflictException;
 import com.store.ecommerce.exception.ResourceNotFoundException;
 import com.store.ecommerce.mapper.EntityMapper;
+import com.store.ecommerce.repository.InvoiceItemRepository;
 import com.store.ecommerce.repository.ItemRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
@@ -17,6 +19,7 @@ import org.springframework.transaction.annotation.Transactional;
 public class ItemService {
 
     private final ItemRepository itemRepository;
+    private final InvoiceItemRepository invoiceItemRepository;
 
     @Transactional(readOnly = true)
     public Page<ItemResponse> findAll(Pageable pageable) {
@@ -51,6 +54,12 @@ public class ItemService {
     @Transactional
     public void delete(Long id) {
         Item i = getEntity(id);
+        long usedIn = invoiceItemRepository.countByItemId(id);
+        if (usedIn > 0) {
+            throw new ConflictException(
+                    "Cannot delete item '" + i.getName() + "' because it is used in "
+                            + usedIn + " invoice line(s). Remove those invoices first.");
+        }
         itemRepository.delete(i);
     }
 

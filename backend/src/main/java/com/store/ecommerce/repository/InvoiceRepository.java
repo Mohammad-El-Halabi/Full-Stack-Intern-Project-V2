@@ -14,4 +14,7 @@ public interface InvoiceRepository extends JpaRepository<Invoice, Long> {
 
     /** All invoices whose customer's name contains the given text (case-insensitive), paged. */
     Page<Invoice> findByCustomer_NameContainingIgnoreCase(String name, Pageable pageable);
+
+    /** How many invoices belong to the given customer (used to guard deletes). */
+    long countByCustomerId(Long customerId);
 }

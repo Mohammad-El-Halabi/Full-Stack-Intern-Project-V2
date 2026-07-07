@@ -3,9 +3,11 @@ package com.store.ecommerce.service;
 import com.store.ecommerce.dto.CustomerRequest;
 import com.store.ecommerce.dto.CustomerResponse;
 import com.store.ecommerce.entity.Customer;
+import com.store.ecommerce.exception.ConflictException;
 import com.store.ecommerce.exception.ResourceNotFoundException;
 import com.store.ecommerce.mapper.EntityMapper;
 import com.store.ecommerce.repository.CustomerRepository;
+import com.store.ecommerce.repository.InvoiceRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -17,6 +19,7 @@ import org.springframework.transaction.annotation.Transactional;
 public class CustomerService {
 
     private final CustomerRepository customerRepository;
+    private final InvoiceRepository invoiceRepository;
 
     @Transactional(readOnly = true)
     public Page<CustomerResponse> findAll(Pageable pageable) {
@@ -51,6 +54,12 @@ public class CustomerService {
     @Transactional
     public void delete(Long id) {
         Customer c = getEntity(id);
+        long invoices = invoiceRepository.countByCustomerId(id);
+        if (invoices > 0) {
+            throw new ConflictException(
+                    "Cannot delete customer '" + c.getName() + "' because they have "
+                            + invoices + " invoice(s). Delete those invoices first.");
+        }
         customerRepository.delete(c);
     }
 

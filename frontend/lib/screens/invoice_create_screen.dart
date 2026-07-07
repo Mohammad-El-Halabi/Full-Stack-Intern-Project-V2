@@ -5,6 +5,7 @@ import '../models/customer.dart';
 import '../models/invoice.dart';
 import '../models/item.dart';
 import '../services/api_service.dart';
+import '../theme/app_theme.dart';
 import '../utils/formatting.dart';
 
 /// Compose and submit a new invoice for [customer]: pick items, set
@@ -100,27 +101,16 @@ class _InvoiceCreateScreenState extends State<InvoiceCreateScreen> {
 
   Future<void> _submit() async {
     if (_lines.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Add at least one item to the invoice.')),
-      );
+      context.showError('Add at least one item to the invoice.');
       return;
     }
     setState(() => _submitting = true);
     try {
-      final invoice =
-          await api.createInvoice(widget.customer.id!, _lines.values.toList());
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Created invoice #${invoice.id}')),
-        );
-        Navigator.pop(context, true);
-      }
+      await api.createInvoice(widget.customer.id!, _lines.values.toList());
+      if (mounted) Navigator.pop(context, true);
     } on ApiException catch (e) {
       setState(() => _submitting = false);
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text(e.message), backgroundColor: Colors.red));
-      }
+      if (mounted) context.showError(e.message);
     }
   }
 
