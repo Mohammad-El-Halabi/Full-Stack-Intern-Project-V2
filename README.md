@@ -7,21 +7,61 @@ database, letting the store admin manage customers, items and create invoices.
 
 The project has three parts, each in its own folder:
 
-| Part | Folder      | Tech                                             |
+| Part | Folder      | What it is                                       |
 |------|-------------|--------------------------------------------------|
 | 1    | `database/` | MySQL 8 schema + seed data                       |
-| 2    | `backend/`  | Spring Boot 3.2.3, Spring Data JPA, Lombok, JDK 17 |
-| 3    | `frontend/` | Flutter (runs on Web, Windows desktop, Android)  |
+| 2    | `backend/`  | Spring Boot REST API                             |
+| 3    | `frontend/` | Flutter admin app (Web / Windows / Android)      |
 
 A ready-to-import **Postman** collection lives in `postman/`.
 
 ---
 
-## Architecture at a glance
+## Table of contents
+1. [Technology stack](#technology-stack)
+2. [Architecture & data model](#architecture--data-model)
+3. [Prerequisites (required software)](#prerequisites-required-software)
+4. [How to run locally — step by step](#how-to-run-locally--step-by-step)
+   - [Part 1 — Database](#part-1--database-mysql)
+   - [Part 2 — API](#part-2--api-spring-boot)
+   - [Part 3 — Frontend](#part-3--frontend-flutter)
+5. [Alternative: run backend + DB with Docker](#alternative-run-the-backend--database-with-docker-one-command)
+6. [API endpoints](#api-endpoints)
+7. [Suggested demo walkthrough](#suggested-demo-walkthrough)
+8. [Troubleshooting](#troubleshooting)
+9. [Project layout](#project-layout)
+
+---
+
+## Technology stack
+
+| Layer        | Technology            | Version           | Notes                                       |
+|--------------|-----------------------|-------------------|---------------------------------------------|
+| Database     | MySQL                 | 8.x               | Managed with HeidiSQL                       |
+| Backend lang | Java (JDK)            | 17                | Language level 17                           |
+| Backend      | Spring Boot           | 3.2.3             | `spring-boot-starter-web`                   |
+| Persistence  | Spring Data JPA       | (Boot-managed)    | Repositories + paging                       |
+| ORM          | Hibernate             | 6.4.x             | Provided by Spring Data JPA                 |
+| DB driver    | MySQL Connector/J     | (Boot-managed)    | `com.mysql:mysql-connector-j`               |
+| Validation   | Jakarta Bean Validation | (Boot-managed)  | `spring-boot-starter-validation`            |
+| Boilerplate  | Lombok                | (Boot-managed)    | Getters/setters/constructors                |
+| Build tool   | Maven                 | 3.9.x             | Bundled with STS                            |
+| Tests        | JUnit 5 + H2          | (Boot-managed)    | In-memory DB, no MySQL needed for tests     |
+| Frontend     | Flutter               | 3.41 (stable)     | Material 3 UI                               |
+| Frontend lang| Dart                  | 3.11+             | Comes with Flutter                          |
+| HTTP client  | `http`                | ^1.2              | REST calls to the API                       |
+| Formatting   | `intl`                | ^0.19             | Currency / date formatting                  |
+| API testing  | Postman               | any               | Collection in `postman/`                    |
+| (optional)   | Docker + Compose      | any recent        | One-command backend + DB                    |
+
+---
+
+## Architecture & data model
 
 ```
 Flutter app  ──HTTP/JSON──►  Spring Boot REST API  ──JPA/JDBC──►  MySQL 8
  (frontend)                        (backend)                     (ecommerce_db)
+   :chrome                          :8080                            :3306
 ```
 
 ### Data model
@@ -36,67 +76,151 @@ customers ──1─────< invoices ──1─────< invoice_items
                                             line_total
 ```
 
-`invoice_items` resolves the many-to-many relationship between invoices and
-items. It stores the **quantity**, the **unit price at time of sale** (a
-snapshot, so later price changes never rewrite history) and the **line total**.
-An invoice's `total_amount` is the sum of its line totals.
+`invoice_items` is the extra table that resolves the many-to-many relationship
+between invoices and items. Per line it stores the **quantity**, the **unit
+price at time of sale** (a snapshot, so later price changes never rewrite
+history) and the **line total**. An invoice's `total_amount` is the sum of its
+line totals.
+
+### Backend layering
+`controller` → `service` (business logic + `@Transactional`) → `repository`
+(Spring Data JPA) → `entity`. Requests/responses use `dto` records; entities are
+converted by `mapper`; errors go through a global `exception` handler that
+returns a consistent JSON error body.
 
 ---
 
-## Part 1 — Database (MySQL 8 / HeidiSQL)
+## Prerequisites (required software)
 
-Files in `database/`:
+Install these before running (versions used during development in brackets):
 
-- `schema.sql` — creates the `ecommerce_db` schema and all tables (with keys,
-  foreign keys, indexes and check constraints).
-- `seed.sql` — inserts demo customers, items and invoices so the API/app have
-  data to show immediately.
+| Software                               | Used for      | Download                                             |
+|----------------------------------------|---------------|------------------------------------------------------|
+| **MySQL 8 Server**                     | Part 1 DB     | https://dev.mysql.com/downloads/mysql/               |
+| **HeidiSQL**                           | Part 1 GUI    | https://www.heidisql.com/download.php                |
+| **JDK 17**                             | Part 2 API    | https://adoptium.net/temurin/releases/?version=17    |
+| **Spring Tool Suite (STS)** or IntelliJ| Part 2 IDE    | https://spring.io/tools                              |
+| **Maven 3.9+**                         | Part 2 build  | Bundled with STS (or https://maven.apache.org)       |
+| **Postman**                            | Part 2 testing| https://www.postman.com/downloads/                   |
+| **Flutter SDK** (3.11+ Dart)           | Part 3 app    | https://docs.flutter.dev/get-started/install         |
+| **VS Code** or **Android Studio**      | Part 3 IDE    | https://code.visualstudio.com                        |
 
-**Run it** (HeidiSQL: open the file and press *Run*, or from the command line):
+Check that the tools are visible from a terminal:
 
 ```bash
-mysql -u root -p < database/schema.sql
-mysql -u root -p < database/seed.sql
+java -version        # should print 17.x
+mvn -version         # should print Apache Maven 3.9.x
+mysql --version      # should print 8.x
+flutter --version    # should print Flutter 3.x, Dart 3.11+
 ```
+
+> Prefer not to install JDK/Maven/MySQL? See the
+> [Docker option](#alternative-run-the-backend--database-with-docker-one-command).
 
 ---
 
-## Part 2 — API (Spring Boot)
+## How to run locally — step by step
 
-### Requirements
-- JDK 17
-- Maven (bundled with STS, or standalone)
-- A running MySQL 8 with `ecommerce_db` created (Part 1)
+Do the three parts **in order** (database → API → app). Keep each running in its
+own terminal.
 
-### Configure the database connection
-Defaults live in `backend/src/main/resources/application.properties` and can be
-overridden with environment variables:
+### Part 1 — Database (MySQL)
 
-| Variable      | Default                                                       |
-|---------------|---------------------------------------------------------------|
-| `DB_URL`      | `jdbc:mysql://localhost:3306/ecommerce_db?...`                |
-| `DB_USERNAME` | `root`                                                        |
-| `DB_PASSWORD` | `root`                                                        |
+1. Install and start the **MySQL 8 server**. Note the `root` password you set
+   during installation.
+2. Open **HeidiSQL** and connect to your local server
+   (Host `127.0.0.1`, Port `3306`, User `root`, your password).
+3. Load and run the schema, then the seed data. **Using HeidiSQL:**
+   - `File ▸ Load SQL file…` → pick `database/schema.sql` → press **F9** (or the
+     blue ▶ "Execute" button) to run it. This creates the `ecommerce_db`
+     database and all four tables.
+   - `File ▸ Load SQL file…` → pick `database/seed.sql` → press **F9**. This adds
+     the sample customers, items and invoices.
 
-> The app uses `spring.jpa.hibernate.ddl-auto=validate`, so it expects the
-> tables from `schema.sql` to already exist. If you'd rather have Hibernate
-> create the tables for you, change that property to `update`.
+   **Or, using the command line** (from the project root):
+   ```bash
+   mysql -u root -p < database/schema.sql
+   mysql -u root -p < database/seed.sql
+   ```
+4. Verify: in HeidiSQL, click the `ecommerce_db` database — you should see the
+   tables `customers`, `items`, `invoices`, `invoice_items`, with 5 customers,
+   8 items and 4 invoices.
 
-### Run
+### Part 2 — API (Spring Boot)
 
+1. Open the `backend/` folder in **STS / IntelliJ** as an existing Maven project
+   (STS: `File ▸ Import ▸ Maven ▸ Existing Maven Projects` → select `backend`).
+2. Tell the API how to reach your database. Open
+   `backend/src/main/resources/application.properties` and set your MySQL
+   username/password if they are not `root`/`root`:
+   ```properties
+   spring.datasource.username=root
+   spring.datasource.password=YOUR_MYSQL_PASSWORD
+   ```
+   (Or leave the file alone and set env vars `DB_USERNAME` / `DB_PASSWORD`.)
+3. Run the API. **In the IDE:** right-click `EcommerceApiApplication.java`
+   ▸ *Run As ▸ Spring Boot App*. **Or from a terminal:**
+   ```bash
+   cd backend
+   mvn spring-boot:run
+   ```
+4. Wait for the log line `Started EcommerceApiApplication`. The API is now at
+   **http://localhost:8080**. Open that URL in a browser — you should see a small
+   JSON status page (`"status":"UP"`).
+5. (Optional) **Test the endpoints in Postman:** `File ▸ Import` →
+   `postman/Ecommerce-API.postman_collection.json`. Every request is pre-filled;
+   just hit **Send**. Try *Invoices ▸ Create invoice (with all items)*.
+6. (Optional) **Run the automated tests** (uses an in-memory H2 DB, so MySQL is
+   not required for this): `cd backend && mvn test`.
+
+### Part 3 — Frontend (Flutter)
+
+1. Make sure the API (Part 2) is running.
+2. In a new terminal:
+   ```bash
+   cd frontend
+   flutter pub get        # download packages (first time only)
+   flutter run -d chrome  # runs in Chrome
+   ```
+   Other targets: `flutter run -d windows` (desktop) or `flutter run` with an
+   Android emulator/device selected.
+3. The app opens with three sections in the navigation bar: **Customers**,
+   **Items**, **Invoices**. It automatically talks to the API at
+   `http://localhost:8080` (Android emulator uses `http://10.0.2.2:8080`).
+
+**Pointing at a different API host** (e.g. a phone on your Wi-Fi):
 ```bash
-cd backend
-mvn spring-boot:run
+flutter run --dart-define=API_BASE_URL=http://192.168.1.20:8080
 ```
 
-The API starts on **http://localhost:8080**. Run the tests with `mvn test`
-(they use an in-memory H2 database, so no MySQL is needed for testing).
+That's it — all three parts are running. 🎉
 
-### Endpoints
+---
 
-All list/read endpoints support paging via `?page=`, `?size=` and `?sort=`
-query parameters and return a consistent pagination envelope
-(`content`, `page`, `size`, `totalElements`, `totalPages`, `first`, `last`).
+## Alternative: run the backend + database with Docker (one command)
+
+If you have **Docker Desktop** and would rather not install JDK/Maven/MySQL,
+start the whole backend stack (MySQL with schema+seed pre-loaded **and** the API)
+from the project root:
+
+```bash
+docker compose up --build
+```
+
+- API → **http://localhost:8080**
+- MySQL → **localhost:3306** (user `root`, password `root`, db `ecommerce_db`)
+
+Then run the Flutter app as in [Part 3](#part-3--frontend-flutter). Stop with
+`docker compose down` (add `-v` to also delete the database volume). This is a
+convenience only; the manual setup above works identically.
+
+---
+
+## API endpoints
+
+All list/read endpoints support paging via `?page=`, `?size=` and `?sort=` and
+return a consistent envelope: `content`, `page`, `size`, `totalElements`,
+`totalPages`, `first`, `last`.
 
 **Customers** — `/api/customers`
 | Method | Path                          | Description                          |
@@ -130,8 +254,7 @@ query parameters and return a consistent pagination envelope
 | PUT    | `/api/invoices/{id}`                    | Update an invoice (replaces its lines)        |
 | DELETE | `/api/invoices/{id}`                    | Delete an invoice                             |
 
-#### Create-invoice request (the single endpoint that creates an invoice with all its items)
-`POST /api/invoices`
+**Create-invoice request body** (`POST /api/invoices`):
 ```json
 {
   "customerId": 1,
@@ -143,45 +266,44 @@ query parameters and return a consistent pagination envelope
 ```
 The server looks up each item, snapshots its current price, computes each line
 total and the invoice total, decrements item stock, and returns the full
-invoice. Business rules enforced: the customer and every item must exist, an
-invoice needs at least one line, quantities are ≥ 1, an item can't appear twice,
-and there must be enough stock.
-
-Import `postman/Ecommerce-API.postman_collection.json` into Postman to try every
-endpoint (set the `baseUrl` variable if not using `http://localhost:8080`).
+invoice. Rules enforced: customer and every item must exist, at least one line,
+quantity ≥ 1, no duplicate item ids, and enough stock.
 
 ---
 
-## Part 3 — Frontend (Flutter)
+## Suggested demo walkthrough
 
-A Material 3 admin app that manages customers, items and invoices.
+A tight order for a demo video:
 
-- **Items** — view all, search, create, edit, delete.
-- **Customers** — view all, search, create, edit, delete.
-- **Invoices** — pick a customer to view all their invoices (by customer id),
-  and create new invoices by adding items with quantities and a live total.
+1. **Database** — show the four tables and seed rows in HeidiSQL.
+2. **API in Postman** — run *Get all customers*, *Search items by name*,
+   *Get all invoices by customer id*, then *Create invoice (with all items)* and
+   show the returned totals.
+3. **Flutter app**:
+   - **Items** tab: search, create a new item, edit it, delete one.
+   - **Customers** tab: search, create, edit, delete a customer.
+   - **Invoices** tab: pick a customer → see their invoices → tap **New invoice**
+     → add a few items with quantities → watch the live total → **Create** →
+     see it appear in the list.
+4. (Optional) Refresh HeidiSQL to show the new invoice + line items and the
+   decremented item stock in the database.
 
-### Requirements
-- Flutter SDK (Dart 3.11+)
+---
 
-### Run
-Make sure the backend (Part 2) is running first, then:
+## Troubleshooting
 
-```bash
-cd frontend
-flutter pub get
-flutter run -d chrome      # or: -d windows, or an Android emulator/device
-```
-
-### Pointing the app at the API
-`lib/config/api_config.dart` chooses the base URL automatically:
-- Web / Windows desktop → `http://localhost:8080`
-- Android emulator → `http://10.0.2.2:8080` (the emulator's alias for the host)
-
-To point at another host (e.g. a phone on your network), pass it at run time:
-```bash
-flutter run --dart-define=API_BASE_URL=http://192.168.1.20:8080
-```
+- **API won't start / "Access denied for user 'root'"** — the DB username or
+  password in `application.properties` doesn't match your MySQL. Fix it there or
+  via `DB_USERNAME` / `DB_PASSWORD` env vars.
+- **API starts but "Schema validation" / "Table doesn't exist"** — you didn't run
+  `schema.sql` yet, or ran it against the wrong server. Re-run Part 1. (The app
+  uses `ddl-auto=validate`; if you'd rather have Hibernate create the tables,
+  set `spring.jpa.hibernate.ddl-auto=update` in `application.properties`.)
+- **Flutter app shows "Could not reach the server"** — the API isn't running, or
+  the app is targeting the wrong host. Start the API first; on a real Android
+  device pass `--dart-define=API_BASE_URL=http://YOUR_PC_IP:8080`.
+- **Port already in use** — something else is on `8080` (API) or `3306` (MySQL).
+  Stop it, or change `server.port` in `application.properties`.
 
 ---
 
@@ -189,58 +311,33 @@ flutter run --dart-define=API_BASE_URL=http://192.168.1.20:8080
 
 ```
 Full-Stack-Intern-Project-V2/
+├── README.md
+├── docker-compose.yml            # optional one-command backend + DB
 ├── database/
-│   ├── schema.sql
-│   └── seed.sql
+│   ├── schema.sql                # creates ecommerce_db + 4 tables
+│   └── seed.sql                  # sample data
 ├── backend/
+│   ├── Dockerfile
 │   ├── pom.xml
 │   └── src/main/java/com/store/ecommerce/
 │       ├── EcommerceApiApplication.java
-│       ├── config/         (CORS)
-│       ├── controller/     (REST controllers)
-│       ├── dto/            (request/response records + pagination)
-│       ├── entity/         (JPA entities)
-│       ├── exception/      (error handling)
-│       ├── mapper/         (entity → DTO)
-│       ├── repository/     (Spring Data JPA)
-│       └── service/        (business logic)
+│       ├── config/               # CORS
+│       ├── controller/           # REST controllers
+│       ├── dto/                  # request/response records + pagination
+│       ├── entity/               # JPA entities
+│       ├── exception/            # global error handling
+│       ├── mapper/               # entity → DTO
+│       ├── repository/           # Spring Data JPA
+│       └── service/              # business logic
 ├── frontend/
 │   └── lib/
 │       ├── main.dart
-│       ├── config/         (API base URL)
-│       ├── models/         (Customer, Item, Invoice, PageResponse)
-│       ├── services/       (ApiService HTTP client)
-│       ├── screens/        (customers, items, invoices + forms)
-│       ├── utils/          (formatting)
-│       └── widgets/        (shared list widget)
+│       ├── config/               # API base URL
+│       ├── models/               # Customer, Item, Invoice, PageResponse
+│       ├── services/             # ApiService HTTP client
+│       ├── screens/              # customers, items, invoices + forms
+│       ├── utils/                # formatting
+│       └── widgets/              # shared list widget
 └── postman/
     └── Ecommerce-API.postman_collection.json
 ```
-
-## Quick start (all three parts)
-
-```bash
-# 1. Database
-mysql -u root -p < database/schema.sql
-mysql -u root -p < database/seed.sql
-
-# 2. API
-cd backend && mvn spring-boot:run      # http://localhost:8080
-
-# 3. App (in another terminal)
-cd frontend && flutter pub get && flutter run -d chrome
-```
-
-### Optional: run the backend + database with Docker (one command)
-
-If you have Docker and would rather not install JDK/Maven/MySQL, the whole
-backend stack (MySQL with schema+seed pre-loaded, plus the API) can be started
-with a single command from the project root:
-
-```bash
-docker compose up --build     # API on http://localhost:8080, MySQL on :3306
-```
-
-Then run the Flutter app as in step 3. Stop the stack with `docker compose down`
-(add `-v` to also drop the database volume). This is purely a convenience — the
-manual STS + MySQL/HeidiSQL setup above works exactly the same.

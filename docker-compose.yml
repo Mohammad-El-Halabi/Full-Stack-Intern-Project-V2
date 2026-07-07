@@ -31,6 +31,9 @@ services:
   api:
     build: ./backend
     container_name: ecommerce-api
+    # MySQL can briefly restart while it runs the first-time init scripts, so
+    # retry startup until it is truly ready to accept connections.
+    restart: on-failure
     depends_on:
       mysql:
         condition: service_healthy
