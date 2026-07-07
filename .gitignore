@@ -1,0 +1,17 @@
+# Root ignore. Sub-projects (backend/, frontend/) also have their own.
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDEs
+.idea/
+.vscode/
+*.iml
+
+# Java / Maven build output
+backend/target/
+
+# Flutter/Dart build output
+frontend/build/
+frontend/.dart_tool/

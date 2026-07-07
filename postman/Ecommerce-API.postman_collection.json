@@ -1,0 +1,247 @@
+{
+  "info": {
+    "name": "Full Stack Intern Project v2 - E-commerce API",
+    "description": "All endpoints for the store invoices API. Set the {{baseUrl}} collection variable (default http://localhost:8080).",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "baseUrl", "value": "http://localhost:8080" }
+  ],
+  "item": [
+    {
+      "name": "Customers",
+      "item": [
+        {
+          "name": "Get all customers (paged)",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/customers?page=0&size=10&sort=name,asc",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "customers"],
+              "query": [
+                { "key": "page", "value": "0" },
+                { "key": "size", "value": "10" },
+                { "key": "sort", "value": "name,asc" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Search customers by name",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/customers/search?name=ali&page=0&size=10",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "customers", "search"],
+              "query": [
+                { "key": "name", "value": "ali" },
+                { "key": "page", "value": "0" },
+                { "key": "size", "value": "10" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get customer by id",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{baseUrl}}/api/customers/1", "host": ["{{baseUrl}}"], "path": ["api", "customers", "1"] }
+          }
+        },
+        {
+          "name": "Get all invoices by customer id",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{baseUrl}}/api/customers/1/invoices", "host": ["{{baseUrl}}"], "path": ["api", "customers", "1", "invoices"] }
+          }
+        },
+        {
+          "name": "Create customer",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"New Customer\",\n  \"email\": \"new.customer@example.com\",\n  \"phone\": \"+1-202-555-0199\",\n  \"address\": \"1 Test Way\"\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/api/customers", "host": ["{{baseUrl}}"], "path": ["api", "customers"] }
+          }
+        },
+        {
+          "name": "Update customer",
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Updated Name\",\n  \"email\": \"updated@example.com\",\n  \"phone\": \"+1-202-555-0200\",\n  \"address\": \"2 Updated Ave\"\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/api/customers/1", "host": ["{{baseUrl}}"], "path": ["api", "customers", "1"] }
+          }
+        },
+        {
+          "name": "Delete customer",
+          "request": {
+            "method": "DELETE",
+            "url": { "raw": "{{baseUrl}}/api/customers/5", "host": ["{{baseUrl}}"], "path": ["api", "customers", "5"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Items",
+      "item": [
+        {
+          "name": "Get all items (paged)",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/items?page=0&size=10&sort=name,asc",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "items"],
+              "query": [
+                { "key": "page", "value": "0" },
+                { "key": "size", "value": "10" },
+                { "key": "sort", "value": "name,asc" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Search items by name",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/items/search?name=mouse&page=0&size=10",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "items", "search"],
+              "query": [
+                { "key": "name", "value": "mouse" },
+                { "key": "page", "value": "0" },
+                { "key": "size", "value": "10" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get item by id",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{baseUrl}}/api/items/1", "host": ["{{baseUrl}}"], "path": ["api", "items", "1"] }
+          }
+        },
+        {
+          "name": "Create item",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"New Gadget\",\n  \"description\": \"A brand new gadget\",\n  \"price\": 49.99,\n  \"stockQuantity\": 25\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/api/items", "host": ["{{baseUrl}}"], "path": ["api", "items"] }
+          }
+        },
+        {
+          "name": "Update item",
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Updated Gadget\",\n  \"description\": \"Now improved\",\n  \"price\": 59.99,\n  \"stockQuantity\": 30\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/api/items/1", "host": ["{{baseUrl}}"], "path": ["api", "items", "1"] }
+          }
+        },
+        {
+          "name": "Delete item",
+          "request": {
+            "method": "DELETE",
+            "url": { "raw": "{{baseUrl}}/api/items/8", "host": ["{{baseUrl}}"], "path": ["api", "items", "8"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Invoices",
+      "item": [
+        {
+          "name": "Get all invoices (paged)",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/invoices?page=0&size=10&sort=invoiceDate,desc",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "invoices"],
+              "query": [
+                { "key": "page", "value": "0" },
+                { "key": "size", "value": "10" },
+                { "key": "sort", "value": "invoiceDate,desc" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get all invoices by customer's name",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/invoices/search?customerName=alice",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "invoices", "search"],
+              "query": [{ "key": "customerName", "value": "alice" }]
+            }
+          }
+        },
+        {
+          "name": "Get all invoices by customer id",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{baseUrl}}/api/invoices/by-customer/1", "host": ["{{baseUrl}}"], "path": ["api", "invoices", "by-customer", "1"] }
+          }
+        },
+        {
+          "name": "Get invoice by id",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{baseUrl}}/api/invoices/1", "host": ["{{baseUrl}}"], "path": ["api", "invoices", "1"] }
+          }
+        },
+        {
+          "name": "Create invoice (with all items)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"customerId\": 1,\n  \"items\": [\n    { \"itemId\": 1, \"quantity\": 2 },\n    { \"itemId\": 3, \"quantity\": 5 }\n  ]\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/api/invoices", "host": ["{{baseUrl}}"], "path": ["api", "invoices"] }
+          }
+        },
+        {
+          "name": "Update invoice",
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"customerId\": 1,\n  \"items\": [\n    { \"itemId\": 2, \"quantity\": 1 }\n  ]\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/api/invoices/1", "host": ["{{baseUrl}}"], "path": ["api", "invoices", "1"] }
+          }
+        },
+        {
+          "name": "Delete invoice",
+          "request": {
+            "method": "DELETE",
+            "url": { "raw": "{{baseUrl}}/api/invoices/4", "host": ["{{baseUrl}}"], "path": ["api", "invoices", "4"] }
+          }
+        }
+      ]
+    }
+  ]
+}
