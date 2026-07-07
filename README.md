@@ -195,6 +195,31 @@ flutter run --dart-define=API_BASE_URL=http://192.168.1.20:8080
 
 That's it — all three parts are running. 🎉
 
+#### What the app does
+A polished Material 3 admin UI (light **and** dark theme) with:
+- **Items** — view all, **instant search-as-you-type**, create, edit, delete.
+  Each item shows a price pill and a colour-coded stock badge
+  (green / amber "low" / red "out of stock").
+- **Customers** — view all, instant search, create, edit, delete, with avatars
+  and contact chips.
+- **Invoices** — pick a customer to view all their invoices (by customer id),
+  see a lifetime-total summary, expand any invoice to see its line items, and
+  create new invoices with a live-total item picker.
+
+UX details that make it feel responsive:
+- **Search filters instantly as you type** (local filtering) — no need to press
+  Enter and no per-keystroke server calls.
+- **Deletes are optimistic** — the row disappears immediately and the list stays
+  in sync; if the server rejects it (see below) the row returns with a clear
+  error message.
+- **Create / edit refresh the list automatically** and show a success toast.
+
+> **Note — referenced records can't be deleted.** Deleting an item that appears
+> on an invoice, or a customer who has invoices, is blocked (HTTP 409) with a
+> clear message such as *"Cannot delete item 'Wireless Mouse' because it is used
+> in 1 invoice line(s)."* This protects invoice history. Delete the related
+> invoice(s) first if you really want to remove the item/customer.
+
 ---
 
 ## Alternative: run the backend + database with Docker (one command)
@@ -335,9 +360,10 @@ Full-Stack-Intern-Project-V2/
 │       ├── config/               # API base URL
 │       ├── models/               # Customer, Item, Invoice, PageResponse
 │       ├── services/             # ApiService HTTP client
+│       ├── theme/                # Material 3 theme (light+dark) + toasts
 │       ├── screens/              # customers, items, invoices + forms
 │       ├── utils/                # formatting
-│       └── widgets/              # shared list widget
+│       └── widgets/              # ListScaffold, badges, confirm dialog
 └── postman/
     └── Ecommerce-API.postman_collection.json
 ```
